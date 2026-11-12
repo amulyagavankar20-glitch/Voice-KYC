@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     stream_window_seconds: float = Field(default=6.0, ge=2, le=25)
     stream_max_buffer_seconds: float = Field(default=25.0, ge=5, le=29)
 
+    # Optional LLM extraction layer (Groq + GPT-OSS). Default `none` keeps the
+    # deterministic rules-only behaviour. Never auto-approve; LLM only fills
+    # fields, humans still decide.
+    llm_provider: str = "none"
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_request_timeout_seconds: int = Field(default=20, ge=5, le=120)
+    seed_demo_application: bool = False
+
     # OCR is optional. When Tesseract is not installed the API accepts
     # applicant-supplied document text and labels it honestly.
     tesseract_cmd: str = "tesseract"
@@ -65,6 +75,15 @@ class Settings(BaseSettings):
     @property
     def timbre_configured(self) -> bool:
         return bool(self.gnani_api_key and self.gnani_api_base_url and self.gnani_timbre_synthesize_path)
+
+    @property
+    def llm_configured(self) -> bool:
+        return (
+            self.llm_provider.strip().lower() == "groq"
+            and bool(self.groq_api_key)
+            and bool(self.groq_base_url)
+            and bool(self.groq_model)
+        )
 
     @property
     def storage_path(self) -> Path:

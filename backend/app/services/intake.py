@@ -195,12 +195,26 @@ def validate_field(field: str, raw: str) -> tuple[str | None, str | None]:
     return value, None
 
 
-def make_field_record(value: str, evidence: str | None = None) -> dict[str, Any]:
+def make_field_record(
+    value: str,
+    evidence: str | None = None,
+    extraction_source: str = "rules",
+    raw_span: str | None = None,
+) -> dict[str, Any]:
     # No fabricated model confidence: syntactic acceptance is not an AI confidence score.
-    record = {"value": value, "confidence": None, "confidence_type": "not_assessed", "source": "applicant_statement", "needs_review": True}
+    record = {
+        "value": value,
+        "confidence": None,
+        "confidence_type": "not_assessed",
+        "source": "applicant_statement",
+        "needs_review": True,
+        "extraction_source": extraction_source,
+    }
     if evidence:
         # The applicant's own words that support this value, for the reviewer.
         record["evidence"] = evidence
+    if raw_span:
+        record["raw_span"] = raw_span
     return record
 
 

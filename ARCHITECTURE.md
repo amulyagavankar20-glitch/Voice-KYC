@@ -181,6 +181,15 @@ The vendor streaming protocol is not part of the verified Gnani contract. Rather
 
 This is honest about what is and is not vendor-native streaming.
 
+## LLM extraction (optional)
+
+- Provider: Groq (free API), model `openai/gpt-oss-20b` (override via `GROQ_MODEL`).
+- Module: `services/llm_extraction.py` calls Groq Chat Completions with `response_format: json_object` and a strict system prompt; falls back to plain mode if rejected.
+- Wired into `applications.send_message`: rules run first as a candidate, then LLM over the full transcript + pending fields; LLM values take precedence only when they pass `validate_field`. Nothing is saved without validation.
+- Soft-fail: any network/API/timeout/parse error returns `None` and the turn continues with rules only.
+- Per-field `extraction_source` (`llm` / `rules`) is persisted and shown in the agent UI.
+- Disabled by default (`LLM_PROVIDER=none`); no key means no call. Evon is not used.
+
 ## Data and file boundaries
 
 - Uploaded bytes live under `STORAGE_DIR` with generated names; the database stores relative paths.

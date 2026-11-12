@@ -83,6 +83,7 @@ If a new model column is added, add it to `_COLUMNS` in `backend/app/db/migrate.
 - `STORAGE_DIR` defaults to `./data/uploads` (relative to the backend working directory). `MAX_AUDIO_UPLOAD_MB` (15) and `MAX_DOCUMENT_UPLOAD_MB` (10) bound uploads.
 - OCR/ffmpeg are optional. Tesseract is used only if `TESSERACT_CMD` resolves; ffmpeg only if on `PATH`. Without them the API labels `applicant_supplied_text`/`stored_as_is`.
 - `LOG_LEVEL` (default `INFO`), `PROVIDER_RETRY_ATTEMPTS` (3) and `PROVIDER_RETRY_BASE_DELAY_SECONDS` (0.5) tune logging/retries; `GNANI_REQUEST_TIMEOUT_SECONDS` defaults to 45.
+- Optional LLM extraction: `LLM_PROVIDER` (`none` default), `GROQ_API_KEY`, `GROQ_MODEL` (default `openai/gpt-oss-20b`), `GROQ_BASE_URL`, `GROQ_REQUEST_TIMEOUT_SECONDS` (20), `SEED_DEMO_APPLICATION`. With `LLM_PROVIDER=none` or no key, Groq is never called and rules-only behaviour is preserved.
 - Compose reads the gitignored root `.env` for `GNANI_API_KEY` substitution. Compose defaults for passwords are development-only.
 
 ## Invariants — preserve these

@@ -257,6 +257,25 @@ Without Gnani configuration, voice endpoints return `503` and the applicant can 
 
 The server buffers windows of `STREAM_WINDOW_SECONDS` (default 6, hard cap below Prisma's 30-second limit) and calls the batch endpoint for each window. This is **app-level streaming**, not a verified vendor streaming protocol. If the socket fails, the browser keeps the PCM and sends one batch WAV to `/voice/transcribe`.
 
+### Optional LLM extraction (Groq GPT-OSS)
+
+Structured field extraction can optionally use Groq's free API with `openai/gpt-oss-20b` (or `openai/gpt-oss-120b`):
+
+```dotenv
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_groq_key_here
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_REQUEST_TIMEOUT_SECONDS=20
+```
+
+- If `LLM_PROVIDER=none` (default) or `GROQ_API_KEY` is missing, Groq is never called; the deterministic rules extractor is used.
+- The LLM is given the full transcript and the pending field keys and returns JSON. Every candidate value is still run through the existing validators (`validate_field`) before being saved.
+- On network/API errors, timeouts, or invalid JSON, the turn falls back to rules extraction; the request does not crash.
+- `extraction_source` (`llm` / `rules`) is stored per field and shown as a badge in the agent dashboard.
+- Speech (Prisma STT / Timbre TTS) is unaffected. No auto-approve: agents still record Approve / Reject / Request more info.
+- No fabricated confidence: extracted values keep `confidence: null`, `needs_review: true`.
+
 ### Storage, uploads and OCR
 
 ```dotenv

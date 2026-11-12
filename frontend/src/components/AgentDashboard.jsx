@@ -283,6 +283,11 @@ export default function AgentDashboard() {
                             )}
                           </div>
                           <div className="text-sm font-medium mt-1 break-words">{field.value || '—'}</div>
+                          {field.extraction_source && (
+                            <span className={`text-[10px] mt-1 inline-block px-1.5 py-0.5 rounded ${field.extraction_source === 'llm' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
+                              {field.extraction_source === 'llm' ? 'LLM' : 'Rules'}
+                            </span>
+                          )}
                           {field.evidence && field.evidence !== field.value && (
                             <div className="text-[11px] text-slate-500 mt-1 break-words">Spoken: {field.evidence}</div>
                           )}

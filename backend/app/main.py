@@ -16,7 +16,7 @@ from app.core.logging import configure_logging, request_id_ctx
 from app.core.metrics import metrics
 from app.db.base import Base
 from app.db.migrate import apply_startup_migrations
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 
 _ = models  # imported for its side effect: registers ORM models with Base.metadata
 
@@ -26,10 +26,58 @@ logger = logging.getLogger("voicekyc.api")
 API_VERSION = "2.1.0"
 
 
+def _seed_demo_application() -> None:
+    """Create one synthetic, fully-collected application for agent demos.
+
+    Only runs when ``SEED_DEMO_APPLICATION`` is true and the database is empty,
+    so it never duplicates records or touches real applicant data.
+    """
+    from app.models.application import Application, ConversationMessage
+    from app.services.intake import make_field_record, QUESTIONS, COMPLETION
+
+    db = SessionLocal()
+    try:
+        if db.query(Application).count() > 0:
+            return
+        extracted = {
+            "full_name": make_field_record("Ramesh Kumar", extraction_source="rules"),
+            "father_name": make_field_record("Suresh Kumar", extraction_source="rules"),
+            "date_of_birth": make_field_record("12/03/1990", extraction_source="rules"),
+            "address": make_field_record("House 12, MG Road, Pune, Maharashtra", extraction_source="rules"),
+            "occupation": make_field_record("farmer", extraction_source="rules"),
+            "monthly_income": make_field_record("15000", extraction_source="rules"),
+            "loan_purpose": make_field_record("beej aur khad kharidne ke liye", extraction_source="rules"),
+            "phone": make_field_record("9876543210", extraction_source="rules"),
+        }
+        from datetime import datetime, timezone
+
+        app = Application(
+            language="hinglish",
+            status="pending_review",
+            extracted=extracted,
+            current_field=None,
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(app)
+        db.flush()
+        db.add(ConversationMessage(application_id=app.id, role="assistant", content=QUESTIONS["hinglish"]["full_name"], channel="text"))
+        db.add(ConversationMessage(application_id=app.id, role="user", content="Ramesh Kumar", channel="text"))
+        db.add(ConversationMessage(application_id=app.id, role="assistant", content=COMPLETION["hinglish"], channel="text"))
+        db.commit()
+        logger.info("application.demo_seeded", extra={"event": "application.demo_seeded", "application_id": app.id})
+    except Exception as exc:  # pragma: no cover - defensive
+        db.rollback()
+        logger.warning("application.demo_seed_failed", extra={"event": "application.demo_seed_failed", "error": str(exc)})
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     apply_startup_migrations(engine)
+    if settings.seed_demo_application:
+        _seed_demo_application()
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.gnani_request_timeout_seconds),
         limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),

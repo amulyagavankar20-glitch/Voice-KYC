@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.application import Application, ConversationMessage
 from app.schemas.application import (
@@ -164,32 +165,69 @@ async def send_message(app_id: str, payload: ChatMessageRequest, db: Session = D
         app.status = "in_progress"
     add_message(db, app, "user", payload.message, channel="text", client_message_id=payload.client_message_id)
 
-    field = next_missing(app.extracted or {})
-    if field is None:
+    pending_before = [f for f in REQUIRED_FIELDS if not (app.extracted or {}).get(f, {}).get("value")]
+    if not pending_before:
         app.status = "pending_review"
         app.current_field = None
         reply = COMPLETION[app.language]
     else:
-        attempt = clarification_attempt(app.messages, app.language, field)
-        value = None
-        validation_error = None
-        evidence = None
-        # Deterministic framing strip; the validator still decides. Try the
-        # rewritten candidate first, then the applicant's exact words.
-        for candidate in local_candidates(field, payload.message):
-            value, validation_error = validate_field(field, candidate)
-            if value is not None:
-                break
-        if value is not None and value != payload.message.strip():
-            evidence = payload.message
+        primary = pending_before[0]
+        attempt = clarification_attempt(app.messages, app.language, primary)
 
-        if value is None:
-            reply = build_clarification_reply(app.language, field, validation_error, attempt)
-        else:
-            app.extracted = {
-                **(app.extracted or {}),
-                field: make_field_record(value, evidence=evidence),
-            }
+        extracted = dict(app.extracted or {})
+        # Per-field candidates: field -> (value, source, evidence, raw_span)
+        candidates: dict[str, tuple[str, str, str | None, str | None]] = {}
+
+        # 1) Deterministic rules fallback (current primary field only).
+        rules_value = None
+        rules_error = None
+        for candidate_text in local_candidates(primary, payload.message):
+            rules_value, rules_error = validate_field(primary, candidate_text)
+            if rules_value is not None:
+                break
+        if rules_value is not None:
+            rules_evidence = payload.message if rules_value != payload.message.strip() else None
+            candidates[primary] = (rules_value, "rules", rules_evidence, None)
+
+        # 2) Optional LLM extraction (Groq GPT-OSS) over the full transcript.
+        llm_clarification: str | None = None
+        if settings.llm_configured:
+            from app.services.llm_extraction import extract_fields_llm
+
+            llm_result = await extract_fields_llm(
+                app.messages,
+                app.language,
+                pending_before,
+                current_question=QUESTIONS[app.language].get(primary),
+            )
+            if llm_result:
+                llm_clarification = llm_result.get("clarification_question")
+                for field_key in pending_before:
+                    entry = (llm_result.get("fields") or {}).get(field_key, {})
+                    raw_val = entry.get("value")
+                    if raw_val is None:
+                        continue
+                    validated, _err = validate_field(field_key, raw_val)
+                    if validated is None:
+                        continue
+                    raw_span = entry.get("raw_span")
+                    evidence = raw_span if raw_span else (payload.message if validated != payload.message.strip() else None)
+                    # LLM takes precedence over rules for the same field.
+                    candidates[field_key] = (validated, "llm", evidence, raw_span)
+
+        # 3) Apply validated candidates (LLM-preferred) to the record.
+        filled_any = False
+        for field_key, (value, source, evidence, raw_span) in candidates.items():
+            extracted[field_key] = make_field_record(
+                value,
+                evidence=evidence,
+                extraction_source=source,
+                raw_span=raw_span,
+            )
+            filled_any = True
+
+        if filled_any:
+            app.extracted = extracted
             next_field = next_missing(app.extracted)
             if next_field:
                 app.current_field = next_field
@@ -198,6 +236,13 @@ async def send_message(app_id: str, payload: ChatMessageRequest, db: Session = D
                 app.current_field = None
                 app.status = "pending_review"
                 reply = COMPLETION[app.language]
+        else:
+            # Nothing validated: clarify. Prefer a short LLM question if provided.
+            if llm_clarification and len(llm_clarification) <= 400:
+                reply = llm_clarification
+            else:
+                validation_error = rules_error
+                reply = build_clarification_reply(app.language, primary, validation_error, attempt)
 
     add_message(db, app, "assistant", reply)
     touch(app)

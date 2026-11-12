@@ -18,6 +18,8 @@ def capabilities():
         "deterministic_extraction": True,
         "prisma_configured": settings.prisma_configured,
         "timbre_configured": settings.timbre_configured,
+        "llm_provider": settings.llm_provider,
+        "llm_configured": settings.llm_configured,
         "streaming_stt": settings.prisma_configured,
         "document_ocr": tesseract_available(),
         "document_text_fallback": True,
