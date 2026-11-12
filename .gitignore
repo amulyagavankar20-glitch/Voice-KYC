@@ -1,0 +1,58 @@
+# Environment / secrets (never commit real keys or applicant data)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Databases and local state
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+backend/voicekyc.db
+backend/ci.db
+backend/alembic-check.db
+
+# Local media storage
+backend/data/
+data/
+uploads/
+*.log
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+dist/
+
+# Build / IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Alembic generated (keep versions; ignore pycache)
+migrations/versions/__pycache__/
+
+# OpenCode / tooling
+.opencode/

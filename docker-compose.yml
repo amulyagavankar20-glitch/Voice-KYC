@@ -1,0 +1,65 @@
+# VoiceKYC local deployment. Run `docker compose up --build` from the repo root.
+#
+# The root `.env` (gitignored) supplies GNANI_API_KEY and other overrides. Never
+# commit a real key. Compose only substitutes the variables referenced below.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voicekyc}
+      POSTGRES_USER: ${POSTGRES_USER:-voicekyc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voicekyc-local-only}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-voicekyc} -d ${POSTGRES_DB:-voicekyc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-voicekyc}:${POSTGRES_PASSWORD:-voicekyc-local-only}@db:5432/${POSTGRES_DB:-voicekyc}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      STORAGE_DIR: /data/uploads
+      GNANI_API_KEY: ${GNANI_API_KEY:-}
+      GNANI_API_BASE_URL: ${GNANI_API_BASE_URL:-https://api.vachana.ai}
+      GNANI_PRISMA_TRANSCRIBE_PATH: ${GNANI_PRISMA_TRANSCRIBE_PATH:-/stt/v3}
+      GNANI_TIMBRE_SYNTHESIZE_PATH: ${GNANI_TIMBRE_SYNTHESIZE_PATH:-/api/v1/tts/inference}
+      GNANI_STT_MODEL: ${GNANI_STT_MODEL:-prisma-v3.0}
+      GNANI_TTS_MODEL: ${GNANI_TTS_MODEL:-timbre-v2.5}
+      GNANI_TTS_VOICE: ${GNANI_TTS_VOICE:-}
+      PROVIDER_RETRY_ATTEMPTS: ${PROVIDER_RETRY_ATTEMPTS:-3}
+      PROVIDER_RETRY_BASE_DELAY_SECONDS: ${PROVIDER_RETRY_BASE_DELAY_SECONDS:-0.5}
+      STREAM_WINDOW_SECONDS: ${STREAM_WINDOW_SECONDS:-6}
+      STREAM_MAX_BUFFER_SECONDS: ${STREAM_MAX_BUFFER_SECONDS:-25}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:
