@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
-from app.api.routes.auth import get_optional_user
+from app.api.routes.auth import get_current_user
 from app.db.session import get_db
 from app.models.application import Application, ConversationMessage
 from app.models.user import User
@@ -54,6 +54,22 @@ def get_app_or_404(db: Session, app_id: str) -> Application:
     )
     if not app:
         raise HTTPException(status_code=404, detail="Application not found.")
+    return app
+
+
+def ensure_access(app: Application, user: User) -> None:
+    """Strict per-user isolation: applicants access own apps; agents access review queue."""
+    if user.is_agent:
+        return
+    if app.user_id and app.user_id == user.id:
+        return
+    # Unowned legacy/demo rows are not exposed to applicant accounts.
+    raise HTTPException(status_code=404, detail="Application not found.")
+
+
+def get_owned_app(db: Session, app_id: str, user: User) -> Application:
+    app = get_app_or_404(db, app_id)
+    ensure_access(app, user)
     return app
 
 
@@ -130,7 +146,7 @@ def chat_response(app: Application, reply: str, duplicate: bool = False) -> Chat
 def start_application(
     payload: ChatStartRequest,
     db: Session = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     if not payload.consent:
         raise HTTPException(status_code=400, detail="Applicant consent is required before collecting information.")
@@ -139,11 +155,23 @@ def start_application(
         status="in_progress",
         extracted={},
         current_field="full_name",
-        user_id=user.id if user else None,
+        user_id=user.id,
     )
     db.add(app)
     db.flush()
-    first_question = QUESTIONS[payload.language]["full_name"]
+    intro = {
+        "hinglish": (
+            "Namaste! Main VoiceKYC microfinance intake assistant hoon. "
+            "Main aapse loan application ke liye kuch zaroori KYC jaankari aur documents collect karunga. "
+            "Yeh identity verification ya loan approval nahi hai; sabhi details agent review karega.\n\n"
+        ),
+        "marathi": (
+            "नमस्कार! मी VoiceKYC मायक्रोफायनन्स इनटेक सहाय्यक आहे. "
+            "कर्ज अर्जासाठी आवश्यक KYC माहिती आणि कागदपत्रे मी टप्प्याटप्प्याने घेईन. "
+            "ही ओळख पडताळणी किंवा कर्ज मंजुरी नाही; सर्व माहिती प्रतिनिधी तपासेल.\n\n"
+        ),
+    }
+    first_question = intro.get(payload.language, intro["hinglish"]) + QUESTIONS[payload.language]["full_name"]
     add_message(db, app, "assistant", first_question)
     touch(app)
     db.commit()
@@ -155,8 +183,13 @@ def start_application(
 
 
 @router.post("/{app_id}/messages", response_model=ChatResponse)
-async def send_message(app_id: str, payload: ChatMessageRequest, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+async def send_message(
+    app_id: str,
+    payload: ChatMessageRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
 
     # Retry-safe: the same client message ID never produces a second user turn.
     if payload.client_message_id:
@@ -273,11 +306,11 @@ async def send_message(app_id: str, payload: ChatMessageRequest, db: Session = D
 @router.get("", response_model=list[ApplicationSummary])
 def list_applications(
     db: Session = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     query = select(Application).order_by(Application.created_at.desc())
-    # Regular (non-agent) authenticated users only see their own applications.
-    if user is not None and not user.is_agent:
+    # Strict isolation: applicants see only own applications; agents see review queue.
+    if not user.is_agent:
         query = query.where(Application.user_id == user.id)
     apps = db.scalars(query).all()
     result = []
@@ -303,8 +336,12 @@ def list_applications(
 
 
 @router.get("/{app_id}", response_model=ApplicationDetail)
-def get_application(app_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def get_application(
+    app_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     assessment = build_assessment(app.extracted or {}, documents_payload(app))
     return ApplicationDetail(
         id=app.id,
@@ -322,8 +359,12 @@ def get_application(app_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{app_id}/assessment")
-def get_assessment(app_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def get_assessment(
+    app_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     assessment = build_assessment(app.extracted or {}, documents_payload(app))
     app.assessment = assessment
     touch(app)
@@ -332,10 +373,18 @@ def get_assessment(app_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{app_id}/fields/{field}/review")
-def review_field(app_id: str, field: str, payload: FieldReviewRequest, db: Session = Depends(get_db)):
+def review_field(
+    app_id: str,
+    field: str,
+    payload: FieldReviewRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user.is_agent:
+        raise HTTPException(status_code=403, detail="Only review agents can record field reviews.")
     if field not in REQUIRED_FIELDS:
         raise HTTPException(status_code=404, detail="Unknown intake field.")
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
     if field not in (app.extracted or {}):
         raise HTTPException(status_code=409, detail="That field has no applicant value to review.")
     reviewed = dict(app.reviewed_fields or {})
@@ -361,8 +410,15 @@ def review_field(app_id: str, field: str, payload: FieldReviewRequest, db: Sessi
 
 
 @router.post("/{app_id}/follow-up")
-def follow_up(app_id: str, payload: FollowUpRequest, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def follow_up(
+    app_id: str,
+    payload: FollowUpRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user.is_agent:
+        raise HTTPException(status_code=403, detail="Only review agents can send follow-ups.")
+    app = get_owned_app(db, app_id, user)
     field = payload.field or next_missing(app.extracted or {}) or "full_name"
     if field not in REQUIRED_FIELDS:
         raise HTTPException(status_code=422, detail="Unknown intake field.")
@@ -393,8 +449,15 @@ def follow_up(app_id: str, payload: FollowUpRequest, db: Session = Depends(get_d
 
 
 @router.post("/{app_id}/decision")
-def make_decision(app_id: str, payload: DecisionRequest, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def make_decision(
+    app_id: str,
+    payload: DecisionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not user.is_agent:
+        raise HTTPException(status_code=403, detail="Only review agents can record decisions.")
+    app = get_owned_app(db, app_id, user)
     if app.status not in ("pending_review", "in_progress"):
         raise HTTPException(status_code=409, detail="A decision has already been recorded or the application is not reviewable.")
     if payload.decision == "approve" and next_missing(app.extracted or {}):
@@ -412,10 +475,14 @@ def make_decision(app_id: str, payload: DecisionRequest, db: Session = Depends(g
 
 
 @router.delete("/{app_id}", status_code=204)
-def delete_application(app_id: str, db: Session = Depends(get_db)):
+def delete_application(
+    app_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     from app.services import storage
 
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
     for document in app.documents:
         storage.delete(document.storage_path)
     for upload in app.audio_uploads:

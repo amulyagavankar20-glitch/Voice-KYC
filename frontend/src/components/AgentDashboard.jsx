@@ -201,15 +201,15 @@ export default function AgentDashboard() {
   const isClosed = detail && (detail.status === 'approve' || detail.status === 'reject')
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[70vh]">
-      <section className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-        <header className="px-5 py-4 border-b flex items-center justify-between">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-[72vh]">
+      <section className="bg-white/80 backdrop-blur rounded-3xl shadow-sm border border-slate-200/80 flex flex-col overflow-hidden">
+        <header className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white to-slate-50">
           <div>
-            <h2 className="font-semibold">Applications</h2>
-            <p className="text-xs text-slate-500">{applications.length} records · updating live</p>
+            <h2 className="font-semibold text-slate-900">Review queue</h2>
+            <p className="text-xs text-slate-500">{applications.length} microfinance KYC applications · live</p>
           </div>
-          <button onClick={() => fetchApplications()} disabled={loading} className="p-2 hover:bg-slate-100 rounded-lg" title="Refresh">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <button onClick={() => fetchApplications()} disabled={loading} className="p-2 hover:bg-slate-100 rounded-xl border border-transparent hover:border-slate-200" title="Refresh">
+            <RefreshCw size={16} className={loading ? 'animate-spin text-primary-600' : 'text-slate-600'} />
           </button>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -240,13 +240,13 @@ export default function AgentDashboard() {
         </div>
       </section>
 
-      <section className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+      <section className="lg:col-span-2 bg-white/80 backdrop-blur rounded-3xl shadow-sm border border-slate-200/80 flex flex-col overflow-hidden">
         {!detail ? (
-          <div className="flex-1 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <FileText size={42} className="mx-auto mb-3 opacity-40" />
-              <p className="font-medium">Select an application</p>
-              <p className="text-sm mt-1">Review applicant information, evidence, and conversation</p>
+          <div className="flex-1 flex items-center justify-center text-slate-400 bg-gradient-to-b from-white to-slate-50/50">
+            <div className="text-center px-6">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3"><FileText size={24} className="text-slate-400" /></div>
+              <p className="font-medium text-slate-700">Select an application to review</p>
+              <p className="text-sm mt-1 text-slate-500">Verify applicant-provided KYC details, documents, and conversation. Decisions are human-recorded.</p>
             </div>
           </div>
         ) : (

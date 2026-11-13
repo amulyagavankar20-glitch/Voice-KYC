@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.routes.applications import get_app_or_404
+from app.api.routes.applications import get_owned_app
+from app.api.routes.auth import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.application import AudioUpload, ConversationMessage
+from app.models.user import User
 from app.schemas.application import AudioOut
 from app.services import storage
 from app.services.audio import compress_audio
@@ -64,8 +66,9 @@ async def upload_audio(
     file: UploadFile = File(...),
     message_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
     _message_belongs(db, app_id, message_id)
     content = await file.read(settings.max_audio_bytes + 1)
     if len(content) > settings.max_audio_bytes:
@@ -99,9 +102,10 @@ def init_audio(
     content_type: str = Form(default="application/octet-stream"),
     message_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Start a resumable upload. Chunks are appended with explicit offsets."""
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
     _message_belongs(db, app_id, message_id)
     upload = AudioUpload(
         application_id=app.id,
@@ -131,8 +135,9 @@ async def upload_chunk(
     offset: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
     upload = db.get(AudioUpload, upload_id)
     if not upload or upload.application_id != app.id:
         raise HTTPException(status_code=404, detail="Audio upload not found.")
@@ -157,8 +162,13 @@ async def upload_chunk(
 
 
 @router.post("/{app_id}/audio/{upload_id}/complete", response_model=AudioOut)
-def complete_upload(app_id: str, upload_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def complete_upload(
+    app_id: str,
+    upload_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     upload = db.get(AudioUpload, upload_id)
     if not upload or upload.application_id != app.id:
         raise HTTPException(status_code=404, detail="Audio upload not found.")
@@ -176,15 +186,25 @@ def complete_upload(app_id: str, upload_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{app_id}/audio", response_model=list[AudioOut])
-def list_audio(app_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def list_audio(
+    app_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     return app.audio_uploads
 
 
 @router.get("/{app_id}/audio/{upload_id}")
-def get_audio(app_id: str, upload_id: str, db: Session = Depends(get_db)):
+def get_audio(
+    app_id: str,
+    upload_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     upload = db.get(AudioUpload, upload_id)
-    if not upload or upload.application_id != app_id or upload.status != "complete" or not upload.storage_path:
+    if not upload or upload.application_id != app.id or upload.status != "complete" or not upload.storage_path:
         raise HTTPException(status_code=404, detail="Audio not found.")
     path = storage.resolve(upload.storage_path)
     if not path.exists():
@@ -198,9 +218,15 @@ def get_audio(app_id: str, upload_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{app_id}/audio/{upload_id}", status_code=204)
-def delete_audio(app_id: str, upload_id: str, db: Session = Depends(get_db)):
+def delete_audio(
+    app_id: str,
+    upload_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     upload = db.get(AudioUpload, upload_id)
-    if not upload or upload.application_id != app_id:
+    if not upload or upload.application_id != app.id:
         raise HTTPException(status_code=404, detail="Audio not found.")
     storage.delete(upload.storage_path)
     db.delete(upload)

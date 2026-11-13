@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 
 from app.core import config as config_module
 from app.main import app
+from app.models.user import User
+from app.services.auth import hash_password
 
 
 @pytest.fixture
@@ -24,6 +26,16 @@ def client(tmp_path, monkeypatch):
     Base.metadata.create_all(engine)
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
+    def seed_user():
+        db = TestingSession()
+        try:
+            db.add(User(username="llmuser", password_hash=hash_password("Passw0rd!"), full_name="LLM User", is_agent=False))
+            db.commit()
+        finally:
+            db.close()
+
+    seed_user()
+
     def override_get_db():
         db = TestingSession()
         try:
@@ -32,7 +44,11 @@ def client(tmp_path, monkeypatch):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    c = TestClient(app)
+    r = c.post("/api/v1/auth/login", json={"username": "llmuser", "password": "Passw0rd!"})
+    assert r.status_code == 200
+    c.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
+    yield c
     app.dependency_overrides.clear()
     engine.dispose()
 

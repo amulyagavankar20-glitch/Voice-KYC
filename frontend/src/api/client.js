@@ -1,5 +1,30 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 const DEFAULT_TIMEOUT_MS = 30000
+const TOKEN_KEY = 'voicekyc.token.v1'
+const USER_KEY = 'voicekyc.user.v1'
+
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+}
+export function setToken(t) {
+  try {
+    if (t) localStorage.setItem(TOKEN_KEY, t)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch { /* ignore */ }
+}
+export function getStoredUser() {
+  try { const v = localStorage.getItem(USER_KEY); return v ? JSON.parse(v) : null } catch { return null }
+}
+export function setStoredUser(u) {
+  try {
+    if (u) localStorage.setItem(USER_KEY, JSON.stringify(u))
+    else localStorage.removeItem(USER_KEY)
+  } catch { /* ignore */ }
+}
+export function clearAuth() {
+  setToken(null)
+  setStoredUser(null)
+}
 
 function errorMessage(payload, status) {
   if (typeof payload === 'string' && payload.trim()) return payload
@@ -24,10 +49,13 @@ function retryableError(message, status) {
 async function request(path, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const token = getToken()
+  const headers = new Headers(options.headers || {})
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
   try {
     let response
     try {
-      response = await fetch(`${API_BASE}${path}`, { ...options, signal: controller.signal })
+      response = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal })
     } catch (error) {
       if (error.name === 'AbortError') {
         throw retryableError('The request took too long. It will be retried when the connection recovers.', null)
@@ -121,8 +149,11 @@ export const api = {
   },
   synthesize: (text, language) =>
     request('/voice/synthesize', json({ text, language }), 60000),
-  voiceStreamUrl: (language) =>
-    `${absoluteBase().replace(/^http/i, 'ws')}/voice/stream?language=${encodeURIComponent(language)}`,
+  voiceStreamUrl: (language) => {
+    const token = getToken()
+    const base = `${absoluteBase().replace(/^http/i, 'ws')}/voice/stream?language=${encodeURIComponent(language)}`
+    return token ? `${base}&token=${encodeURIComponent(token)}` : base
+  },
   capabilities: () => request('/capabilities'),
   metrics: () => request('/metrics'),
 

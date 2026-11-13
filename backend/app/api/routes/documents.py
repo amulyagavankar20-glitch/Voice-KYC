@@ -3,10 +3,12 @@ import logging
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.routes.applications import get_app_or_404, touch
+from app.api.routes.applications import get_owned_app, touch
+from app.api.routes.auth import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.application import IdentityDocument
+from app.models.user import User
 from app.schemas.application import DocumentOut
 from app.services import ocr, storage
 from app.services.documents import DOC_TYPES, cross_check, extract_fields
@@ -51,10 +53,11 @@ async def upload_document(
     text: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     if doc_type not in DOC_TYPES:
         raise HTTPException(status_code=422, detail="doc_type must be 'pan' or 'aadhaar'.")
-    app = get_app_or_404(db, app_id)
+    app = get_owned_app(db, app_id, user)
 
     content = b""
     if file is not None:
@@ -113,14 +116,23 @@ async def upload_document(
 
 
 @router.get("/{app_id}/documents", response_model=list[DocumentOut])
-def list_documents(app_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def list_documents(
+    app_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     return app.documents
 
 
 @router.delete("/{app_id}/documents/{document_id}", status_code=204)
-def delete_document(app_id: str, document_id: str, db: Session = Depends(get_db)):
-    app = get_app_or_404(db, app_id)
+def delete_document(
+    app_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    app = get_owned_app(db, app_id, user)
     document = next((row for row in app.documents if row.id == document_id), None)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found.")
