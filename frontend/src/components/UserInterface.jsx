@@ -172,7 +172,7 @@ export default function UserInterface() {
   const docFileRef = useRef(null)
   const bottomRef = useRef(null)
 
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages, loading])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
   const refreshApplication = useCallback(async id => {
     const target = id || applicationIdRef.current
@@ -284,14 +284,16 @@ export default function UserInterface() {
   }, [])
 
   // Release the microphone, stream, and audio URL if the user navigates away.
-  useEffect(() => () => {
-    disposedRef.current = true
-    recordingIdRef.current += 1
-    stopCapture()
-    closeSocket()
-    audioRef.current?.pause()
-    audioRef.current = null
-    if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null }
+  useEffect(() => {
+    return () => {
+      disposedRef.current = true
+      recordingIdRef.current += 1
+      stopCapture()
+      closeSocket()
+      audioRef.current?.pause()
+      audioRef.current = null
+      if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null }
+    }
   }, [closeSocket, stopCapture])
 
   const startConversation = async () => {
