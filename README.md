@@ -276,6 +276,16 @@ GROQ_REQUEST_TIMEOUT_SECONDS=20
 - Speech (Prisma STT / Timbre TTS) is unaffected. No auto-approve: agents still record Approve / Reject / Request more info.
 - No fabricated confidence: extracted values keep `confidence: null`, `needs_review: true`.
 
+### Authentication (new)
+
+User accounts are stored in PostgreSQL (or SQLite locally) with bcrypt password hashing and JWT bearer tokens.
+
+- `POST /api/v1/auth/register` — create account (User ID, password, full name, optional email).
+- `POST /api/v1/auth/login` — returns a bearer token.
+- `GET /api/v1/auth/me` — current user (requires `Authorization: Bearer <token>`).
+- `POST/GET/DELETE /api/v1/auth/documents` — upload/list/delete verification documents (auth required). Documents are stored; verification status is recorded by an authorized reviewer. Uploading is not verification.
+- Seed users (enabled by `SEED_DEMO_USERS=true`, default on): `ramesh.kumar`, `suresh.patil`, `anita.sharma`, `vikram.singh`, `priya.desai` — all use password `Demo@1234`.
+
 ### Storage, uploads and OCR
 
 ```dotenv

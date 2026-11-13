@@ -84,6 +84,7 @@ If a new model column is added, add it to `_COLUMNS` in `backend/app/db/migrate.
 - OCR/ffmpeg are optional. Tesseract is used only if `TESSERACT_CMD` resolves; ffmpeg only if on `PATH`. Without them the API labels `applicant_supplied_text`/`stored_as_is`.
 - `LOG_LEVEL` (default `INFO`), `PROVIDER_RETRY_ATTEMPTS` (3) and `PROVIDER_RETRY_BASE_DELAY_SECONDS` (0.5) tune logging/retries; `GNANI_REQUEST_TIMEOUT_SECONDS` defaults to 45.
 - Optional LLM extraction: `LLM_PROVIDER` (`none` default), `GROQ_API_KEY`, `GROQ_MODEL` (default `openai/gpt-oss-20b`), `GROQ_BASE_URL`, `GROQ_REQUEST_TIMEOUT_SECONDS` (20), `SEED_DEMO_APPLICATION`. With `LLM_PROVIDER=none` or no key, Groq is never called and rules-only behaviour is preserved.
+- Authentication: bcrypt password hashing + JWT bearer tokens (PyJWT). Routes under `/api/v1/auth/*`. `SEED_DEMO_USERS` (default true) seeds 5 demo accounts (password `Demo@1234`). `SECRET_KEY` should be changed before deployment.
 - Compose reads the gitignored root `.env` for `GNANI_API_KEY` substitution. Compose defaults for passwords are development-only.
 
 ## Invariants — preserve these

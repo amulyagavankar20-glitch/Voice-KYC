@@ -4,5 +4,13 @@ from app.models.application import (
     ConversationMessage,
     IdentityDocument,
 )
+from app.models.user import User, UserDocument
 
-__all__ = ["Application", "AudioUpload", "ConversationMessage", "IdentityDocument"]
+__all__ = [
+    "Application",
+    "AudioUpload",
+    "ConversationMessage",
+    "IdentityDocument",
+    "User",
+    "UserDocument",
+]

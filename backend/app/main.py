@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import models
-from app.api.routes import applications, audio, documents, health, ops, voice
+from app.api.routes import applications, audio, auth, documents, health, ops, voice
 from app.core.config import settings
 from app.core.http import set_shared_client
 from app.core.logging import configure_logging, request_id_ctx
@@ -32,8 +32,10 @@ def _seed_demo_application() -> None:
     Only runs when ``SEED_DEMO_APPLICATION`` is true and the database is empty,
     so it never duplicates records or touches real applicant data.
     """
+    from datetime import datetime, timezone
+
     from app.models.application import Application, ConversationMessage
-    from app.services.intake import make_field_record, QUESTIONS, COMPLETION
+    from app.services.intake import COMPLETION, QUESTIONS, make_field_record
 
     db = SessionLocal()
     try:
@@ -49,8 +51,6 @@ def _seed_demo_application() -> None:
             "loan_purpose": make_field_record("beej aur khad kharidne ke liye", extraction_source="rules"),
             "phone": make_field_record("9876543210", extraction_source="rules"),
         }
-        from datetime import datetime, timezone
-
         app = Application(
             language="hinglish",
             status="pending_review",
@@ -72,12 +72,48 @@ def _seed_demo_application() -> None:
         db.close()
 
 
+def _seed_demo_users() -> None:
+    """Seed a few synthetic user accounts for auth testing (fake data only)."""
+    from app.models.user import User
+    from app.services.auth import hash_password
+
+    db = SessionLocal()
+    try:
+        if db.query(User).count() > 0:
+            return
+        demo_users = [
+            ("ramesh.kumar", "Ramesh Kumar", "ramesh.kumar@example.com"),
+            ("suresh.patil", "Suresh Patil", "suresh.patil@example.com"),
+            ("anita.sharma", "Anita Sharma", "anita.sharma@example.com"),
+            ("vikram.singh", "Vikram Singh", "vikram.singh@example.com"),
+            ("priya.desai", "Priya Desai", "priya.desai@example.com"),
+        ]
+        for username, full_name, email in demo_users:
+            db.add(
+                User(
+                    username=username,
+                    password_hash=hash_password("Demo@1234"),
+                    full_name=full_name,
+                    email=email,
+                )
+            )
+        db.commit()
+        logger.info("auth.demo_users_seeded", extra={"event": "auth.demo_users_seeded", "count": len(demo_users)})
+    except Exception as exc:  # pragma: no cover - defensive
+        db.rollback()
+        logger.warning("auth.demo_users_seed_failed", extra={"event": "auth.demo_users_seed_failed", "error": str(exc)})
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     apply_startup_migrations(engine)
     if settings.seed_demo_application:
         _seed_demo_application()
+    if settings.seed_demo_users:
+        _seed_demo_users()
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.gnani_request_timeout_seconds),
         limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
@@ -155,6 +191,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(health.router, prefix=settings.api_v1_prefix)
+app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(ops.router, prefix=settings.api_v1_prefix)
 app.include_router(applications.router, prefix=settings.api_v1_prefix)
 app.include_router(documents.router, prefix=settings.api_v1_prefix)

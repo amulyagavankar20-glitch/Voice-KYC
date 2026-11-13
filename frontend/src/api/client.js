@@ -125,6 +125,20 @@ export const api = {
     `${absoluteBase().replace(/^http/i, 'ws')}/voice/stream?language=${encodeURIComponent(language)}`,
   capabilities: () => request('/capabilities'),
   metrics: () => request('/metrics'),
+
+  // Auth
+  register: (username, password, fullName, email) =>
+    request('/auth/register', json({ username, password, full_name: fullName, email: email || null })),
+  login: (username, password) => request('/auth/login', json({ username, password })),
+  me: () => request('/auth/me'),
+  listUserDocuments: () => request('/auth/documents'),
+  uploadUserDocument: (docType, file) => {
+    const form = new FormData()
+    form.append('doc_type', docType)
+    form.append('file', file)
+    return request('/auth/documents', { method: 'POST', body: form }, 120000)
+  },
+  deleteUserDocument: (id) => request(`/auth/documents/${id}`, { method: 'DELETE' }),
 }
 
 export { API_BASE }

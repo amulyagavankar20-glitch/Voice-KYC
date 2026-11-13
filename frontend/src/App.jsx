@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import UserInterface from './components/UserInterface'
 import AgentDashboard from './components/AgentDashboard'
-import { Mic, LayoutDashboard } from 'lucide-react'
+import AuthScreen from './components/AuthScreen'
+import { Mic, LayoutDashboard, ShieldCheck } from 'lucide-react'
 
 function App() {
-  const [view, setView] = useState('user') // 'user' | 'agent'
+  const [view, setView] = useState('user') // 'user' | 'agent' | 'account'
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -45,6 +46,17 @@ function App() {
                 <LayoutDashboard className="w-4 h-4" />
                 Agent Dashboard
               </button>
+              <button
+                onClick={() => setView('account')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  view === 'account'
+                    ? 'bg-white text-primary-700 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Account
+              </button>
             </div>
           </div>
         </div>
@@ -52,7 +64,7 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {view === 'user' ? <UserInterface /> : <AgentDashboard />}
+        {view === 'user' ? <UserInterface /> : view === 'agent' ? <AgentDashboard /> : <AuthScreen />}
       </main>
     </div>
   )

@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_request_timeout_seconds: int = Field(default=20, ge=5, le=120)
     seed_demo_application: bool = False
+    seed_demo_users: bool = True
 
     # OCR is optional. When Tesseract is not installed the API accepts
     # applicant-supplied document text and labels it honestly.
