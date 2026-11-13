@@ -56,3 +56,6 @@ migrations/versions/__pycache__/
 
 # OpenCode / tooling
 .opencode/
+
+# Local downloaded tools (ffmpeg, tesseract, etc.)
+tools/

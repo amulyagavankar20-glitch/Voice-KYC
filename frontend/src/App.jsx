@@ -10,53 +10,38 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Top Navigation */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <nav className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
+          <div className="flex justify-between h-16 items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary-600 rounded-lg flex items-center justify-center">
+              <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-sm">
                 <Mic className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-900">VoiceKYC</h1>
-                <p className="text-xs text-slate-500 -mt-0.5">Gnani AI × Microfinance</p>
+                <h1 className="text-lg font-bold text-slate-900 leading-tight">VoiceKYC</h1>
+                <p className="text-[11px] text-slate-500 -mt-0.5">Voice-first microfinance intake</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-              <button
-                onClick={() => setView('user')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  view === 'user'
-                    ? 'bg-white text-primary-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Mic className="w-4 h-4" />
-                User Voice Interface
-              </button>
-              <button
-                onClick={() => setView('agent')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  view === 'agent'
-                    ? 'bg-white text-primary-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Agent Dashboard
-              </button>
-              <button
-                onClick={() => setView('account')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  view === 'account'
-                    ? 'bg-white text-primary-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <ShieldCheck className="w-4 h-4" />
-                Account
-              </button>
+            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+              {[
+                { key: 'user', label: 'Applicant', icon: Mic },
+                { key: 'agent', label: 'Agent', icon: LayoutDashboard },
+                { key: 'account', label: 'Account', icon: ShieldCheck },
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setView(key)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    view === key
+                      ? 'bg-white text-primary-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
