@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
+from app.api.routes.auth import get_optional_user
 from app.db.session import get_db
 from app.models.application import Application, ConversationMessage
+from app.models.user import User
 from app.schemas.application import (
     ApplicationDetail,
     ApplicationSummary,
@@ -125,10 +127,20 @@ def chat_response(app: Application, reply: str, duplicate: bool = False) -> Chat
 
 
 @router.post("", response_model=ChatResponse, status_code=201)
-def start_application(payload: ChatStartRequest, db: Session = Depends(get_db)):
+def start_application(
+    payload: ChatStartRequest,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
     if not payload.consent:
         raise HTTPException(status_code=400, detail="Applicant consent is required before collecting information.")
-    app = Application(language=payload.language, status="in_progress", extracted={}, current_field="full_name")
+    app = Application(
+        language=payload.language,
+        status="in_progress",
+        extracted={},
+        current_field="full_name",
+        user_id=user.id if user else None,
+    )
     db.add(app)
     db.flush()
     first_question = QUESTIONS[payload.language]["full_name"]
@@ -259,8 +271,15 @@ async def send_message(app_id: str, payload: ChatMessageRequest, db: Session = D
 
 
 @router.get("", response_model=list[ApplicationSummary])
-def list_applications(db: Session = Depends(get_db)):
-    apps = db.scalars(select(Application).order_by(Application.created_at.desc())).all()
+def list_applications(
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    query = select(Application).order_by(Application.created_at.desc())
+    # Regular (non-agent) authenticated users only see their own applications.
+    if user is not None and not user.is_agent:
+        query = query.where(Application.user_id == user.id)
+    apps = db.scalars(query).all()
     result = []
     for app in apps:
         extracted = app.extracted or {}

@@ -15,6 +15,7 @@ class Application(Base):
     __tablename__ = "applications"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(32), default="in_progress", index=True)
     language: Mapped[str] = mapped_column(String(20), default="hinglish")
     extracted: Mapped[dict] = mapped_column(JSON, default=dict)

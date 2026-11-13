@@ -17,6 +17,8 @@ logger = logging.getLogger("voicekyc.migrations")
 _COLUMNS = [
     ("applications", "reviewed_fields", "JSON", "'{}'"),
     ("applications", "assessment", "JSON", "'{}'"),
+    ("applications", "user_id", "VARCHAR(36)", None),
+    ("users", "is_agent", "BOOLEAN", "false"),
     ("conversation_messages", "client_message_id", "VARCHAR(64)", None),
 ]
 

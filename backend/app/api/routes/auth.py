@@ -61,6 +61,7 @@ def _user_out(user: User) -> dict[str, Any]:
         "full_name": user.full_name,
         "email": user.email,
         "is_active": user.is_active,
+        "is_agent": user.is_agent,
     }
 
 
@@ -77,6 +78,18 @@ def get_current_user(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive.")
     return user
+
+
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if credentials is None or not credentials.credentials:
+        return None
+    payload = decode_access_token(credentials.credentials)
+    if not payload or "sub" not in payload:
+        return None
+    return get_user_by_id(db, payload["sub"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)

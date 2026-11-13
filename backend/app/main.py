@@ -82,19 +82,21 @@ def _seed_demo_users() -> None:
         if db.query(User).count() > 0:
             return
         demo_users = [
-            ("ramesh.kumar", "Ramesh Kumar", "ramesh.kumar@example.com"),
-            ("suresh.patil", "Suresh Patil", "suresh.patil@example.com"),
-            ("anita.sharma", "Anita Sharma", "anita.sharma@example.com"),
-            ("vikram.singh", "Vikram Singh", "vikram.singh@example.com"),
-            ("priya.desai", "Priya Desai", "priya.desai@example.com"),
+            ("ramesh.kumar", "Ramesh Kumar", "ramesh.kumar@example.com", False),
+            ("suresh.patil", "Suresh Patil", "suresh.patil@example.com", False),
+            ("anita.sharma", "Anita Sharma", "anita.sharma@example.com", False),
+            ("vikram.singh", "Vikram Singh", "vikram.singh@example.com", False),
+            ("priya.desai", "Priya Desai", "priya.desai@example.com", False),
+            ("agent.review", "Review Agent", "agent.review@example.com", True),
         ]
-        for username, full_name, email in demo_users:
+        for username, full_name, email, is_agent in demo_users:
             db.add(
                 User(
                     username=username,
                     password_hash=hash_password("Demo@1234"),
                     full_name=full_name,
                     email=email,
+                    is_agent=is_agent,
                 )
             )
         db.commit()
